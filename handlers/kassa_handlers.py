@@ -1,4 +1,5 @@
 import logging
+import math
 from datetime import datetime
 
 from aiogram import Router, F, Bot
@@ -164,6 +165,22 @@ async def chiqim_start(message: Message, state: FSMContext):
     )
 
 
+@router.message(F.text == "🔄 Ayirboshlash")
+async def exchange_start(message: Message, state: FSMContext):
+    await state.clear()
+    await state.set_state(KassaState.exchange_input)
+    await message.answer(
+        "🔄 <b>Ayirboshlash</b>\n\n"
+        "Chiqim qilinayotgan summa va valyuta kursini <b>-</b> bilan ajratib yozing:\n\n"
+        "<b>Dollarni so'mga maydalash:</b>\n"
+        "<code>100$ - 12600</code> (100$ chiqib, 1 260 000 so'm kiradi)\n\n"
+        "<b>So'mni dollarga o'girish:</b>\n"
+        "<code>1260000 - 12600</code> (so'm chiqib, 100$ kiradi)",
+        parse_mode="HTML",
+        reply_markup=cancel_keyboard(),
+    )
+
+
 # ─── KIRITISH ─────────────────────────────────────────────────────────────────
 
 @router.message(KassaState.input)
@@ -219,6 +236,94 @@ async def kassa_input(message: Message, state: FSMContext, bot: Bot):
         )
 
 
+@router.message(KassaState.exchange_input)
+async def exchange_input(message: Message, state: FSMContext, bot: Bot):
+    text = message.text.strip()
+    if text == "❌ Bekor qilish":
+        await state.clear()
+        await message.answer("❌ Bekor qilindi.", reply_markup=main_menu())
+        return
+
+    if ' - ' in text:
+        parts = text.split(' - ', 1)
+    elif '-' in text:
+        parts = text.split('-', 1)
+    else:
+        await message.answer("⚠️ Format noto'g'ri. Masalan: <code>100$ - 12600</code>", parse_mode="HTML")
+        return
+
+    amount_data = _try_number(parts[0])
+    rate_data = _try_number(parts[1])
+
+    if not amount_data or not rate_data:
+        await message.answer("⚠️ Raqam kiritishda xatolik.", parse_mode="HTML")
+        return
+        
+    amount, valyuta_out = amount_data
+    rate, _ = rate_data
+
+    if rate <= 0:
+        await message.answer("⚠️ Kurs noto'g'ri.")
+        return
+
+    uid = message.from_user.id
+    vaqt = datetime.now()
+
+    if valyuta_out == 'usd':
+        chiqim_val = '$'
+        chiqim_summa = amount
+        kirim_val = "so'm"
+        kirim_summa = math.floor((amount * rate) / 1000) * 1000
+    else:
+        chiqim_val = "so'm"
+        chiqim_summa = amount
+        kirim_val = "$"
+        kirim_summa = math.floor(amount / rate)
+
+    chiqim_str = f"{chiqim_summa:,}".replace(',', ' ')
+    kirim_str = f"{kirim_summa:,}".replace(',', ' ')
+    izoh = f"Ayirboshlash (Kurs: {rate:,})".replace(',', ' ')
+
+    ok1, entry1 = save_kassa(uid, "Chiqim", chiqim_str, chiqim_val, izoh)
+    ok2, entry2 = save_kassa(uid, "Kirim", kirim_str, kirim_val, izoh)
+    
+    await state.clear()
+
+    if ok1 and ok2:
+        _last_saved[uid] = {
+            "entries": [entry1, entry2],
+            "time": vaqt,
+            "tur": "Ayirboshlash",
+            "summa": f"{chiqim_str} {chiqim_val} 🔄 {kirim_str} {kirim_val}",
+            "valyuta": "",
+            "izoh": izoh,
+        }
+        await message.answer(
+            f"✅ <b>Ayirboshlash saqlandi!</b>\n\n"
+            f"💸 Chiqim: <b>{chiqim_str} {chiqim_val}</b>\n"
+            f"💰 Kirim: <b>{kirim_str} {kirim_val}</b>\n"
+            f"📝 {izoh}",
+            parse_mode="HTML",
+            reply_markup=main_menu(),
+        )
+        if ADMIN_CHAT_ID:
+            uname = f"@{message.from_user.username}" if message.from_user.username else "—"
+            await bot.send_message(
+                ADMIN_CHAT_ID,
+                f"🔄 <b>AYIRBOSHLASH</b>\n"
+                f"━━━━━━━━━━━━━━━━\n"
+                f"💸 Chiqim: {chiqim_str} {chiqim_val}\n"
+                f"💰 Kirim: {kirim_str} {kirim_val}\n"
+                f"━━━━━━━━━━━━━━━━\n"
+                f"👤 {message.from_user.full_name} ({uname})\n"
+                f"🆔 <code>{uid}</code>\n"
+                f"🕐 {vaqt.strftime('%d.%m.%Y %H:%M')}",
+                parse_mode="HTML",
+            )
+    else:
+        await message.answer("❌ Saqlashda xato yuz berdi.", reply_markup=main_menu())
+
+
 # ─── OXIRGINI BEKOR QILISH ────────────────────────────────────────────────────
 
 @router.message(F.text == "↩️ Oxirgini bekor qilish")
@@ -247,7 +352,7 @@ async def undo_start(message: Message):
     summa = last["summa"]
     izoh  = last["izoh"]
     val   = last.get("valyuta", "")
-    emoji = "💰" if tur == "Kirim" else "💸"
+    emoji = "🔄" if tur == "Ayirboshlash" else ("💰" if tur == "Kirim" else "💸")
     qoldi = int(UNDO_TTL - elapsed)
 
     await message.answer(
@@ -273,12 +378,18 @@ async def cb_undo_yes(callback: CallbackQuery, bot: Bot):
         await callback.answer("Muddat tugagan.", show_alert=True)
         return
 
-    ok    = delete_kassa_entry(last["entry"])
+    if "entries" in last:
+        ok1 = delete_kassa_entry(last["entries"][0])
+        ok2 = delete_kassa_entry(last["entries"][1])
+        ok = ok1 and ok2
+    else:
+        ok = delete_kassa_entry(last["entry"])
+        
     tur   = last["tur"]
     summa = last["summa"]
     izoh  = last["izoh"]
     val   = last.get("valyuta", "")
-    emoji = "💰" if tur == "Kirim" else "💸"
+    emoji = "🔄" if tur == "Ayirboshlash" else ("💰" if tur == "Kirim" else "💸")
 
     if ok:
         del _last_saved[uid]
