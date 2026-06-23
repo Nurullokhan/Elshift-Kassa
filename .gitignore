@@ -1,0 +1,31 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+*.egg-info/
+dist/
+build/
+.eggs/
+
+# Virtual env
+venv/
+.venv/
+env/
+ENV/
+
+# Muhim — Railway da bu fayllar environment variables orqali beriladi
+.env
+
+# Credentials (Railway da environment variable sifatida beriladi)
+credentials.json
+
+# IDE
+.idea/
+.vscode/
+*.swp
+
+# OS
+.DS_Store
+Thumbs.db
