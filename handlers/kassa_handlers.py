@@ -456,6 +456,78 @@ async def cb_undo_no(callback: CallbackQuery):
 
 # ─── BUGUNGI HISOBOT ──────────────────────────────────────────────────────────
 
+def _build_hisobot(report: dict, today: str, full_name: str | None = None) -> str:
+    """
+    Foydalanuvchi yoki admin uchun kassa uslubidagi hisobot matni.
+    full_name berilsa — foydalanuvchi nomi sarlavhaga qo'shiladi.
+    """
+    k_som = report["kirim_som"]
+    k_usd = report["kirim_usd"]
+    c_som = report["chiqim_som"]
+    c_usd = report["chiqim_usd"]
+    b_som = k_som - c_som
+    b_usd = k_usd - c_usd
+
+    # Yozuvlarni chiqim / kirim bo'lib ajratamiz
+    chiqim_entries = [e for e in report.get("entries", []) if e["tur"].lower() == "chiqim"]
+    kirim_entries  = [e for e in report.get("entries", []) if e["tur"].lower() == "kirim"]
+
+    def jami_str(som: float, usd: float) -> str:
+        parts = []
+        if usd:  parts.append(f"<b>{_fmt(usd)} $</b>")
+        if som:  parts.append(f"<b>{_fmt(som)} so'm</b>")
+        return "  |  ".join(parts) if parts else "—"
+
+    lines = ["💰 <b>KASSA</b>"]
+    if full_name:
+        lines.append(f"👤 {full_name}")
+    lines += [
+        "",
+        "━━━━━━━━━━━━━",
+        f"📅 {today}",
+        "━━━━━━━━━━━━━",
+    ]
+
+    # ── CHIQIM ──
+    if chiqim_entries:
+        lines += [
+            "",
+            f"📤 <b>CHIQIM</b>",
+            f"Jami: {jami_str(c_som, c_usd)}",
+            "",
+        ]
+        for e in chiqim_entries:
+            lines.append(f"▪️ Naqd / {e['summa']} {e['valyuta']} — {e['izoh']}")
+
+    # ── KIRIM ──
+    if kirim_entries:
+        lines += [
+            "",
+            f"📥 <b>KIRIM</b>",
+            f"Jami: {jami_str(k_som, k_usd)}",
+            "",
+        ]
+        for e in kirim_entries:
+            lines.append(f"▪️ Naqd / {e['summa']} {e['valyuta']} — {e['izoh']}")
+
+    # ── BALANS ──
+    if chiqim_entries or kirim_entries:
+        balans_parts = []
+        b_usd_sign = "+" if b_usd >= 0 else ""
+        b_som_sign = "+" if b_som >= 0 else ""
+        if k_usd or c_usd: balans_parts.append(f"<b>{b_usd_sign}{_fmt(b_usd)} $</b>")
+        if k_som or c_som: balans_parts.append(f"<b>{b_som_sign}{_fmt(b_som)} so'm</b>")
+        lines += [
+            "",
+            "━━━━━━━━━━━━━",
+            f"💼 Balans: {'  |  '.join(balans_parts)}",
+        ]
+    else:
+        lines.append("\n📭 Bugun hech qanday yozuv yo'q.")
+
+    return "\n".join(lines)
+
+
 @router.message(F.text == "📊 Bugungi hisobot")
 async def hisobot_button(message: Message):
     msg = await message.answer("⏳ Yuklanmoqda...")
@@ -467,68 +539,8 @@ async def hisobot_button(message: Message):
         return
 
     today = datetime.now().strftime("%d.%m.%Y")
-    k_som = report["kirim_som"]
-    k_usd = report["kirim_usd"]
-    c_som = report["chiqim_som"]
-    c_usd = report["chiqim_usd"]
-    b_som = k_som - c_som
-    b_usd = k_usd - c_usd
-    has_any = k_som or k_usd or c_som or c_usd
-
-    lines = [
-        f"📊 <b>BUGUNGI HISOBOT — {today}</b>",
-        "━━━━━━━━━━━━━━━━━━━━",
-    ]
-
-    # ── Tezkor umumiy ko'rinish ──
-    if not has_any:
-        lines.append("📭 Bugun hech qanday yozuv yo'q.")
-    else:
-        # So'm qatori
-        som_parts = []
-        if k_som: som_parts.append(f"💰 +{_fmt(k_som)}")
-        if c_som: som_parts.append(f"💸 -{_fmt(c_som)}")
-        if som_parts:
-            b_som_sign = "+" if b_som >= 0 else ""
-            lines.append(
-                f"🪙 <b>So'm:</b>  {' │ '.join(som_parts)}"
-                f"  →  <b>{b_som_sign}{_fmt(b_som)} so'm</b>"
-            )
-
-        # Dollar qatori
-        if k_usd or c_usd:
-            usd_parts = []
-            if k_usd: usd_parts.append(f"💰 +{_fmt(k_usd)}")
-            if c_usd: usd_parts.append(f"💸 -{_fmt(c_usd)}")
-            b_usd_sign = "+" if b_usd >= 0 else ""
-            lines.append(
-                f"💵 <b>Dollar:</b>  {' │ '.join(usd_parts)}"
-                f"  →  <b>{b_usd_sign}{_fmt(b_usd)} $</b>"
-            )
-
-        # ── Batafsil bo'lim ──
-        lines += [
-            "\n━━━━━━━━━━━━━━━━━━━━",
-            f"💰 <b>KIRIM</b> ({report['kirim_count']} ta yozuv)",
-        ]
-        if k_som: lines.append(f"   So'm:   <b>{_fmt(k_som)} so'm</b>")
-        if k_usd: lines.append(f"   Dollar: <b>{_fmt(k_usd)} $</b>")
-        if not k_som and not k_usd: lines.append("   — yo'q")
-
-        lines.append(f"\n💸 <b>CHIQIM</b> ({report['chiqim_count']} ta yozuv)")
-        if c_som: lines.append(f"   So'm:   <b>{_fmt(c_som)} so'm</b>")
-        if c_usd: lines.append(f"   Dollar: <b>{_fmt(c_usd)} $</b>")
-        if not c_som and not c_usd: lines.append("   — yo'q")
-
-        lines += [
-            "\n━━━━━━━━━━━━━━━━━━━━",
-            "💼 <b>BALANS:</b>",
-            f"   So'm:   <b>{'+' if b_som >= 0 else ''}{_fmt(b_som)} so'm</b>",
-        ]
-        if k_usd or c_usd:
-            lines.append(f"   Dollar: <b>{'+' if b_usd >= 0 else ''}{_fmt(b_usd)} $</b>")
-
-    await msg.edit_text("\n".join(lines), parse_mode="HTML")
+    text = _build_hisobot(report, today)
+    await msg.edit_text(text, parse_mode="HTML")
 
 
 # ─── YAKUNIY HISOBOT ──────────────────────────────────────────────────────────
@@ -543,15 +555,24 @@ async def overall_hisobot_button(message: Message):
     b_som = report.get("b_som", 0.0)
     b_usd = report.get("b_usd", 0.0)
 
-    lines = [
-        f"📋 <b>YAKUNIY HISOBOT</b>",
-        f"👤 Foydalanuvchi: {message.from_user.full_name}",
-        f"📅 Holat: {now_str}",
-        "━━━━━━━━━━━━━━━━━━━━",
-        "💼 <b>QOLDIQ (BALANS):</b>",
-        f"   So'm:   <b>{'+' if b_som >= 0 else ''}{_fmt(b_som)} so'm</b>",
-    ]
+    balans_parts = []
     if b_usd != 0:
-        lines.append(f"   Dollar: <b>{'+' if b_usd >= 0 else ''}{_fmt(b_usd)} $</b>")
+        sign = "+" if b_usd >= 0 else ""
+        balans_parts.append(f"<b>{sign}{_fmt(b_usd)} $</b>")
+    sign = "+" if b_som >= 0 else ""
+    balans_parts.append(f"<b>{sign}{_fmt(b_som)} so'm</b>")
+
+    lines = [
+        "💰 <b>KASSA</b>",
+        f"👤 {message.from_user.full_name}",
+        "",
+        "━━━━━━━━━━━━━",
+        f"📅 {now_str}",
+        "━━━━━━━━━━━━━",
+        "",
+        "💼 <b>YAKUNIY QOLDIQ</b>",
+        f"Balans: {'  |  '.join(balans_parts)}",
+    ]
 
     await msg.edit_text("\n".join(lines), parse_mode="HTML")
+
