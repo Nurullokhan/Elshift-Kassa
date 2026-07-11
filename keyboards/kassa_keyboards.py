@@ -7,7 +7,7 @@ def main_menu() -> ReplyKeyboardMarkup:
             [KeyboardButton(text="💰 Kirim"), KeyboardButton(text="💸 Chiqim")],
             [KeyboardButton(text="🔄 Ayirboshlash")],
             [KeyboardButton(text="↩️ Oxirgini bekor qilish")],
-            [KeyboardButton(text="📊 Bugungi hisobot")],
+            [KeyboardButton(text="📊 Bugungi hisobot"), KeyboardButton(text="📋 Yakuniy hisobot")],
         ],
         resize_keyboard=True,
         persistent=True,

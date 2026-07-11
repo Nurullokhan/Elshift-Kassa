@@ -10,7 +10,7 @@ from aiogram.fsm.context import FSMContext
 from config import ADMIN_CHAT_ID
 from keyboards.kassa_keyboards import main_menu, cancel_keyboard, undo_keyboard
 from states.kassa_states import KassaState
-from services.google_sheets import is_allowed_user, save_kassa, delete_kassa_entry, get_today_report
+from services.google_sheets import is_allowed_user, save_kassa, delete_kassa_entry, get_today_report, get_overall_report
 
 router = Router()
 
@@ -461,6 +461,49 @@ async def hisobot_button(message: Message):
     lines += [
         "\n━━━━━━━━━━━━━━━━━━━━",
         "💼 <b>BALANS:</b>",
+        f"   So'm:   <b>{'+' if b_som >= 0 else ''}{_fmt(b_som)} so'm</b>",
+    ]
+    if k_usd or c_usd:
+        lines.append(f"   Dollar: <b>{'+' if b_usd >= 0 else ''}{_fmt(b_usd)} $</b>")
+
+    await msg.edit_text("\n".join(lines), parse_mode="HTML")
+
+
+@router.message(F.text == "📋 Yakuniy hisobot")
+async def overall_hisobot_button(message: Message):
+    msg = await message.answer("⏳ Yuklanmoqda...")
+    report = get_overall_report()
+
+    if not report:
+        await msg.edit_text("❌ Hisobotni olishda xato.")
+        return
+
+    now_str = datetime.now().strftime("%d.%m.%Y %H:%M")
+    k_som = report["kirim_som"]
+    k_usd = report["kirim_usd"]
+    c_som = report["chiqim_som"]
+    c_usd = report["chiqim_usd"]
+    b_som = k_som - c_som
+    b_usd = k_usd - c_usd
+
+    lines = [
+        f"📋 <b>YAKUNIY HISOBOT</b>",
+        f"📅 Holat: {now_str}",
+        "━━━━━━━━━━━━━━━━━━━━",
+        f"💰 <b>UMUMIY KIRIM</b> ({report['kirim_count']} ta yozuv)",
+    ]
+    if k_som: lines.append(f"   So'm:   <b>{_fmt(k_som)} so'm</b>")
+    if k_usd: lines.append(f"   Dollar: <b>{_fmt(k_usd)} $</b>")
+    if not k_som and not k_usd: lines.append("   — yo'q")
+
+    lines.append(f"\n💸 <b>UMUMIY CHIQIM</b> ({report['chiqim_count']} ta yozuv)")
+    if c_som: lines.append(f"   So'm:   <b>{_fmt(c_som)} so'm</b>")
+    if c_usd: lines.append(f"   Dollar: <b>{_fmt(c_usd)} $</b>")
+    if not c_som and not c_usd: lines.append("   — yo'q")
+
+    lines += [
+        "\n━━━━━━━━━━━━━━━━━━━━",
+        "💼 <b>QOLDIQ (BALANS):</b>",
         f"   So'm:   <b>{'+' if b_som >= 0 else ''}{_fmt(b_som)} so'm</b>",
     ]
     if k_usd or c_usd:

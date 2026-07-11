@@ -295,6 +295,59 @@ def get_today_report(retry: bool = True) -> dict:
         return {}
 
 
+def get_overall_report(retry: bool = True) -> dict:
+    """
+    Barcha vaqtdagi yozuvlarni o'qib umumiy hisobot qaytaradi.
+    """
+    ws = _get_kassabot_ws()
+    if ws is None:
+        return {}
+
+    try:
+        result = {
+            "kirim_count": 0, "kirim_som": 0.0, "kirim_usd": 0.0,
+            "chiqim_count": 0, "chiqim_som": 0.0, "chiqim_usd": 0.0,
+        }
+
+        for row in ws.get_all_values()[1:]:
+            if len(row) < 6:
+                continue
+            _, _, status, summa, valyuta, _ = (
+                row[0], row[1], row[2], row[3], row[4], row[5]
+            )
+
+            # Raqamni tozalash
+            clean = str(summa).replace(" ", "").replace(",", "").strip()
+            try:
+                amount = float(clean)
+            except Exception:
+                amount = 0.0
+
+            is_usd = str(valyuta).strip() == "$"
+
+            if str(status).lower() == "kirim":
+                result["kirim_count"] += 1
+                if is_usd:
+                    result["kirim_usd"] += amount
+                else:
+                    result["kirim_som"] += amount
+            elif str(status).lower() == "chiqim":
+                result["chiqim_count"] += 1
+                if is_usd:
+                    result["chiqim_usd"] += amount
+                else:
+                    result["chiqim_som"] += amount
+
+        return result
+
+    except Exception as e:
+        logging.error(f"Umumiy hisobot olishda xato: {e}")
+        if retry:
+            _reset_cache()
+            return get_overall_report(retry=False)
+        return {}
+
+
 def get_last_entries(n: int = 10, retry: bool = True) -> list[dict]:
     """Oxirgi n ta yozuvni qaytaradi (eng yangi birinchi)."""
     ws = _get_kassabot_ws()
