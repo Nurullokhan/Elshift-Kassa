@@ -24,7 +24,7 @@ def _hisobot_text(report: dict) -> str:
     b_usd  = k_usd - c_usd
 
     lines = [
-        f"📊 <b>BUGUNGI HISOBOT — {today}</b>",
+        f"📊 <b>BUGUNGI HISOBOT (BARCHASI) — {today}</b>",
         "━━━━━━━━━━━━━━━━━━━━",
         f"💰 <b>KIRIM</b> ({report.get('kirim_count', 0)} ta)",
     ]
@@ -67,7 +67,8 @@ async def cmd_hisobot(message: Message):
         return
 
     msg = await message.answer("⏳ Hisobot tayyorlanmoqda...")
-    report = get_today_report()
+    # Admin barcha foydalanuvchilar hisobotini ko'radi (telegram_id=None)
+    report = get_today_report(telegram_id=None)
     if not report:
         await msg.edit_text("❌ Hisobotni olishda xato yuz berdi.")
         return
@@ -83,7 +84,8 @@ async def cmd_balans(message: Message):
         return
 
     msg = await message.answer("⏳ Hisoblanmoqda...")
-    report = get_today_report()
+    # Admin barcha foydalanuvchilar balansini ko'radi (telegram_id=None)
+    report = get_today_report(telegram_id=None)
     if not report:
         await msg.edit_text("❌ Ma'lumotni olishda xato.")
         return
@@ -95,7 +97,7 @@ async def cmd_balans(message: Message):
     c_usd = report.get("chiqim_usd", 0)
 
     lines = [
-        f"💼 <b>BALANS — {today}</b>",
+        f"💼 <b>BALANS (BARCHASI) — {today}</b>",
         "━━━━━━━━━━━━━━━━",
         f"So'm:   <b>{'+' if b_som >= 0 else ''}{_fmt(b_som)} so'm</b>",
     ]
@@ -113,7 +115,7 @@ async def cmd_oxirgi(message: Message):
         await message.answer("❌ Bu buyruq faqat adminlar uchun.")
         return
 
-    parts = message.text.split()
+    parts = message.text.split() if message.text else []
     n = 10
     if len(parts) > 1:
         try:

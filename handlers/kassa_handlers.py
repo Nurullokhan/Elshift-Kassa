@@ -54,7 +54,7 @@ def _parse_input(text: str) -> tuple[str | None, str | None, str | None]:
 
     Qaytaradi: (summa, valyuta, izoh) yoki (None, None, None)
     """
-    # Ajratuvchi: boʻsh joy bilan ' - ' (afzal), yoki shunchaki '-'
+    # Ajratuvchi: bo'sh joy bilan ' - ' (afzal), yoki shunchaki '-'
     if ' - ' in text:
         parts = text.split(' - ', 1)
     elif '-' in text:
@@ -185,6 +185,14 @@ async def exchange_start(message: Message, state: FSMContext):
 
 @router.message(KassaState.input)
 async def kassa_input(message: Message, state: FSMContext, bot: Bot):
+    # Matn bo'lmasa (foto, sticker va boshqalar) — e'tiborsiz qoldiramiz
+    if not message.text:
+        await message.answer(
+            "⚠️ Iltimos, matn ko'rinishida yozing.",
+            reply_markup=cancel_keyboard(),
+        )
+        return
+
     text = message.text.strip()
 
     if text == "❌ Bekor qilish":
@@ -206,7 +214,7 @@ async def kassa_input(message: Message, state: FSMContext, bot: Bot):
         return
 
     data = await state.get_data()
-    tur  = data["tur"]
+    tur  = data.get("tur", "Kirim")  # KeyError oldini olish
     uid  = message.from_user.id
 
     ok, entry = save_kassa(uid, tur, summa, valyuta, izoh)
@@ -238,6 +246,14 @@ async def kassa_input(message: Message, state: FSMContext, bot: Bot):
 
 @router.message(KassaState.exchange_input)
 async def exchange_input(message: Message, state: FSMContext, bot: Bot):
+    # Matn bo'lmasa — e'tiborsiz qoldiramiz
+    if not message.text:
+        await message.answer(
+            "⚠️ Iltimos, matn ko'rinishida yozing.",
+            reply_markup=cancel_keyboard(),
+        )
+        return
+
     text = message.text.strip()
     if text == "❌ Bekor qilish":
         await state.clear()
@@ -249,21 +265,28 @@ async def exchange_input(message: Message, state: FSMContext, bot: Bot):
     elif '-' in text:
         parts = text.split('-', 1)
     else:
-        await message.answer("⚠️ Format noto'g'ri. Masalan: <code>100$ - 12600</code>", parse_mode="HTML")
+        await message.answer(
+            "⚠️ Format noto'g'ri. Masalan: <code>100$ - 12600</code>",
+            parse_mode="HTML",
+        )
         return
 
     amount_data = _try_number(parts[0])
     rate_data = _try_number(parts[1])
 
     if not amount_data or not rate_data:
-        await message.answer("⚠️ Raqam kiritishda xatolik.", parse_mode="HTML")
+        await message.answer(
+            "⚠️ Raqam kiritishda xatolik.\n\n"
+            "Masalan: <code>100$ - 12600</code> yoki <code>1260000 - 12600</code>",
+            parse_mode="HTML",
+        )
         return
-        
+
     amount, valyuta_out = amount_data
     rate, _ = rate_data
 
     if rate <= 0:
-        await message.answer("⚠️ Kurs noto'g'ri.")
+        await message.answer("⚠️ Kurs noto'g'ri. Musbat son kiriting.")
         return
 
     uid = message.from_user.id
@@ -281,47 +304,53 @@ async def exchange_input(message: Message, state: FSMContext, bot: Bot):
         kirim_summa = math.floor(amount / rate)
 
     chiqim_str = f"{chiqim_summa:,}".replace(',', ' ')
-    kirim_str = f"{kirim_summa:,}".replace(',', ' ')
-    izoh = f"Ayirboshlash (Kurs: {rate:,})".replace(',', ' ')
+    kirim_str  = f"{kirim_summa:,}".replace(',', ' ')
+    izoh       = f"Ayirboshlash (Kurs: {rate:,})".replace(',', ' ')
 
     ok1, entry1 = save_kassa(uid, "Chiqim", chiqim_str, chiqim_val, izoh)
-    ok2, entry2 = save_kassa(uid, "Kirim", kirim_str, kirim_val, izoh)
-    
+    ok2, entry2 = save_kassa(uid, "Kirim",  kirim_str,  kirim_val,  izoh)
+
     await state.clear()
 
     if ok1 and ok2:
         _last_saved[uid] = {
             "entries": [entry1, entry2],
-            "time": vaqt,
-            "tur": "Ayirboshlash",
-            "summa": f"{chiqim_str} {chiqim_val} 🔄 {kirim_str} {kirim_val}",
+            "time":    vaqt,
+            "tur":     "Ayirboshlash",
+            "summa":   f"{chiqim_str} {chiqim_val} 🔄 {kirim_str} {kirim_val}",
             "valyuta": "",
-            "izoh": izoh,
+            "izoh":    izoh,
         }
         await message.answer(
             f"✅ <b>Ayirboshlash saqlandi!</b>\n\n"
             f"💸 Chiqim: <b>{chiqim_str} {chiqim_val}</b>\n"
-            f"💰 Kirim: <b>{kirim_str} {kirim_val}</b>\n"
+            f"💰 Kirim:  <b>{kirim_str} {kirim_val}</b>\n"
             f"📝 {izoh}",
             parse_mode="HTML",
             reply_markup=main_menu(),
         )
         if ADMIN_CHAT_ID:
-            uname = f"@{message.from_user.username}" if message.from_user.username else "—"
-            await bot.send_message(
-                ADMIN_CHAT_ID,
-                f"🔄 <b>AYIRBOSHLASH</b>\n"
-                f"━━━━━━━━━━━━━━━━\n"
-                f"💸 Chiqim: {chiqim_str} {chiqim_val}\n"
-                f"💰 Kirim: {kirim_str} {kirim_val}\n"
-                f"━━━━━━━━━━━━━━━━\n"
-                f"👤 {message.from_user.full_name} ({uname})\n"
-                f"🆔 <code>{uid}</code>\n"
-                f"🕐 {vaqt.strftime('%d.%m.%Y %H:%M')}",
-                parse_mode="HTML",
-            )
+            try:
+                uname = f"@{message.from_user.username}" if message.from_user.username else "—"
+                await bot.send_message(
+                    ADMIN_CHAT_ID,
+                    f"🔄 <b>AYIRBOSHLASH</b>\n"
+                    f"━━━━━━━━━━━━━━━━\n"
+                    f"💸 Chiqim: {chiqim_str} {chiqim_val}\n"
+                    f"💰 Kirim:  {kirim_str} {kirim_val}\n"
+                    f"━━━━━━━━━━━━━━━━\n"
+                    f"👤 {message.from_user.full_name} ({uname})\n"
+                    f"🆔 <code>{uid}</code>\n"
+                    f"🕐 {vaqt.strftime('%d.%m.%Y %H:%M')}",
+                    parse_mode="HTML",
+                )
+            except Exception as e:
+                logging.error(f"Admin ayirboshlash xabari yuborilmadi: {e}")
     else:
-        await message.answer("❌ Saqlashda xato yuz berdi.", reply_markup=main_menu())
+        await message.answer(
+            "❌ Saqlashda xato yuz berdi. Qayta urinib ko'ring.",
+            reply_markup=main_menu(),
+        )
 
 
 # ─── OXIRGINI BEKOR QILISH ────────────────────────────────────────────────────
@@ -381,10 +410,10 @@ async def cb_undo_yes(callback: CallbackQuery, bot: Bot):
     if "entries" in last:
         ok1 = delete_kassa_entry(last["entries"][0])
         ok2 = delete_kassa_entry(last["entries"][1])
-        ok = ok1 and ok2
+        ok  = ok1 and ok2
     else:
         ok = delete_kassa_entry(last["entry"])
-        
+
     tur   = last["tur"]
     summa = last["summa"]
     izoh  = last["izoh"]
@@ -410,7 +439,7 @@ async def cb_undo_yes(callback: CallbackQuery, bot: Bot):
                     parse_mode="HTML",
                 )
             except Exception as e:
-                logging.error(f"Admin xabari: {e}")
+                logging.error(f"Admin bekor qilish xabari: {e}")
     else:
         await callback.message.edit_text("❌ O'chirishda xato. Sheets dan qo'lda o'chiring.")
         await callback.message.answer("Keyingi amalni tanlang:", reply_markup=main_menu())
@@ -470,15 +499,13 @@ async def hisobot_button(message: Message):
     await msg.edit_text("\n".join(lines), parse_mode="HTML")
 
 
+# ─── YAKUNIY HISOBOT ──────────────────────────────────────────────────────────
+
 @router.message(F.text == "📋 Yakuniy hisobot")
 async def overall_hisobot_button(message: Message):
     msg = await message.answer("⏳ Yuklanmoqda...")
     uid = message.from_user.id
     report = get_overall_report(telegram_id=uid)
-
-    if not report:
-        await msg.edit_text("❌ Hisobotni olishda xato yoki yozuv topilmadi.")
-        return
 
     now_str = datetime.now().strftime("%d.%m.%Y %H:%M")
     b_som = report.get("b_som", 0.0)

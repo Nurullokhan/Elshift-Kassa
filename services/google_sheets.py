@@ -71,14 +71,23 @@ def _get_kassabot_ws() -> gspread.Worksheet | None:
         try:
             return spreadsheet.worksheet("KassaBot")
         except gspread.exceptions.WorksheetNotFound:
-            ws = spreadsheet.add_worksheet(title="KassaBot", rows=1000, cols=6)
-            ws.append_row(["Vaqt", "Telegram ID", "Status", "Summa", "Valyuta", "Izoh"])
-            ws.format("A1:F1", {"textFormat": {"bold": True}})
-            logging.info("'KassaBot' varag'i yaratildi (6 ustun).")
+            ws = spreadsheet.add_worksheet(title="KassaBot", rows=1000, cols=9)
+            ws.append_row(["Vaqt", "Telegram ID", "Status", "Summa", "Valyuta", "Izoh",
+                           "Foydalanuvchilar", "So'm", "Dollar"])
+            ws.format("A1:I1", {"textFormat": {"bold": True}})
+            logging.info("'KassaBot' varag'i yaratildi (9 ustun).")
             return ws
     except Exception as e:
         logging.error(f"'KassaBot' varag'ini olishda xato: {e}")
         return None
+
+
+def _parse_amount(raw: str) -> float:
+    """Xavfsiz raqam tozalash yordamchi funksiya."""
+    try:
+        return float(str(raw).replace(" ", "").replace(",", "").strip())
+    except Exception:
+        return 0.0
 
 
 # ─── Auth ─────────────────────────────────────────────────────────────────────
@@ -173,8 +182,8 @@ def save_kassa(
 
     try:
         vaqt = datetime.now().strftime("%d/%m/%Y %H:%M")
-        raw_summa = float(summa.replace(" ", "").replace(",", "")) if '.' in summa or ',' in summa else int(summa.replace(" ", "").replace(",", ""))
-        
+        raw_summa = _parse_amount(summa)
+
         row = [vaqt, str(telegram_id), status, raw_summa, valyuta, izoh]
         ws.append_row(row, value_input_option="USER_ENTERED")
         logging.info(f"[{status}] saqlandi — {telegram_id} | {summa} {valyuta} | {izoh}")
@@ -232,9 +241,10 @@ def delete_kassa_entry(entry: dict, retry: bool = True) -> bool:
         return False
 
 
-def get_today_report(telegram_id: int, retry: bool = True) -> dict:
+def get_today_report(telegram_id: int | None = None, retry: bool = True) -> dict:
     """
-    Bugungi yozuvlarni o'qib foydalanuvchi uchun hisobot qaytaradi.
+    Bugungi yozuvlarni o'qib hisobot qaytaradi.
+    telegram_id berilsa — faqat shu foydalanuvchi; None bo'lsa — barcha (admin uchun).
     Ustunlar: Vaqt(0) | TgID(1) | Status(2) | Summa(3) | Valyuta(4) | Izoh(5)
     """
     ws = _get_kassabot_ws()
@@ -255,10 +265,11 @@ def get_today_report(telegram_id: int, retry: bool = True) -> dict:
             vaqt, tg_id, status, summa, valyuta, izoh = (
                 row[0], row[1], row[2], row[3], row[4], row[5]
             )
-            
-            if tg_id != str(telegram_id):
+
+            # Foydalanuvchi filtri (None bo'lsa — barcha)
+            if telegram_id is not None and tg_id.strip() != str(telegram_id):
                 continue
-                
+
             if not vaqt.startswith(today):
                 continue
 
@@ -267,13 +278,7 @@ def get_today_report(telegram_id: int, retry: bool = True) -> dict:
                 "summa": summa, "valyuta": valyuta, "izoh": izoh
             })
 
-            # Raqamni tozalash
-            clean = str(summa).replace(" ", "").replace(",", "").strip()
-            try:
-                amount = float(clean)
-            except Exception:
-                amount = 0.0
-
+            amount = _parse_amount(summa)
             is_usd = str(valyuta).strip() == "$"
 
             if str(status).lower() == "kirim":
@@ -295,14 +300,14 @@ def get_today_report(telegram_id: int, retry: bool = True) -> dict:
         logging.error(f"Hisobot olishda xato: {e}")
         if retry:
             _reset_cache()
-            return get_today_report(retry=False)
+            return get_today_report(telegram_id=telegram_id, retry=False)
         return {}
 
 
 def get_overall_report(telegram_id: int, retry: bool = True) -> dict:
     """
-    KassaBot varag'ining o'ng tomonidagi (G, H, I ustunlar) 
-    jadvaldan foydalanuvchi balansini o'qib qaytaradi.
+    KassaBot varag'ining o'ng tomonidagi (G, H, I ustunlar)
+    jadvaldan foydalanuvchi yakuniy balansini o'qib qaytaradi.
     """
     ws = _get_kassabot_ws()
     if ws is None:
@@ -310,29 +315,16 @@ def get_overall_report(telegram_id: int, retry: bool = True) -> dict:
 
     try:
         all_data = ws.get_all_values()
-        
+
         for row in all_data[1:]:
             if len(row) >= 7:
                 sheet_id = str(row[6]).strip()
                 if sheet_id == str(telegram_id):
-                    som_val = str(row[7]).replace(" ", "").replace(",", "").strip() if len(row) >= 8 else "0"
-                    usd_val = str(row[8]).replace(" ", "").replace(",", "").strip() if len(row) >= 9 else "0"
-                    
-                    try:
-                        b_som = float(som_val) if som_val else 0.0
-                    except Exception:
-                        b_som = 0.0
-                        
-                    try:
-                        b_usd = float(usd_val) if usd_val else 0.0
-                    except Exception:
-                        b_usd = 0.0
-                        
-                    return {
-                        "b_som": b_som,
-                        "b_usd": b_usd
-                    }
-                    
+                    b_som = _parse_amount(row[7]) if len(row) >= 8 else 0.0
+                    b_usd = _parse_amount(row[8]) if len(row) >= 9 else 0.0
+                    return {"b_som": b_som, "b_usd": b_usd}
+
+        # Agar foydalanuvchi G-I ustunlarda topilmasa, 0 qaytaramiz
         return {"b_som": 0.0, "b_usd": 0.0}
 
     except Exception as e:
