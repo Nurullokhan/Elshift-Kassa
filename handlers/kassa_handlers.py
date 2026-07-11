@@ -430,7 +430,8 @@ async def cb_undo_no(callback: CallbackQuery):
 @router.message(F.text == "📊 Bugungi hisobot")
 async def hisobot_button(message: Message):
     msg = await message.answer("⏳ Yuklanmoqda...")
-    report = get_today_report()
+    uid = message.from_user.id
+    report = get_today_report(telegram_id=uid)
 
     if not report:
         await msg.edit_text("❌ Hisobotni olishda xato.")

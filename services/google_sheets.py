@@ -232,9 +232,9 @@ def delete_kassa_entry(entry: dict, retry: bool = True) -> bool:
         return False
 
 
-def get_today_report(retry: bool = True) -> dict:
+def get_today_report(telegram_id: int, retry: bool = True) -> dict:
     """
-    Bugungi barcha yozuvlarni o'qib hisobot qaytaradi.
+    Bugungi yozuvlarni o'qib foydalanuvchi uchun hisobot qaytaradi.
     Ustunlar: Vaqt(0) | TgID(1) | Status(2) | Summa(3) | Valyuta(4) | Izoh(5)
     """
     ws = _get_kassabot_ws()
@@ -252,9 +252,13 @@ def get_today_report(retry: bool = True) -> dict:
         for row in ws.get_all_values()[1:]:
             if len(row) < 6:
                 continue
-            vaqt, _, status, summa, valyuta, izoh = (
+            vaqt, tg_id, status, summa, valyuta, izoh = (
                 row[0], row[1], row[2], row[3], row[4], row[5]
             )
+            
+            if tg_id != str(telegram_id):
+                continue
+                
             if not vaqt.startswith(today):
                 continue
 
@@ -264,21 +268,21 @@ def get_today_report(retry: bool = True) -> dict:
             })
 
             # Raqamni tozalash
-            clean = summa.replace(" ", "").replace(",", "").strip()
+            clean = str(summa).replace(" ", "").replace(",", "").strip()
             try:
                 amount = float(clean)
             except Exception:
                 amount = 0.0
 
-            is_usd = valyuta.strip() == "$"
+            is_usd = str(valyuta).strip() == "$"
 
-            if status.lower() == "kirim":
+            if str(status).lower() == "kirim":
                 result["kirim_count"] += 1
                 if is_usd:
                     result["kirim_usd"] += amount
                 else:
                     result["kirim_som"] += amount
-            elif status.lower() == "chiqim":
+            elif str(status).lower() == "chiqim":
                 result["chiqim_count"] += 1
                 if is_usd:
                     result["chiqim_usd"] += amount
