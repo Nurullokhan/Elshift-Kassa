@@ -473,28 +473,60 @@ async def hisobot_button(message: Message):
     c_usd = report["chiqim_usd"]
     b_som = k_som - c_som
     b_usd = k_usd - c_usd
+    has_any = k_som or k_usd or c_som or c_usd
 
     lines = [
         f"📊 <b>BUGUNGI HISOBOT — {today}</b>",
         "━━━━━━━━━━━━━━━━━━━━",
-        f"💰 <b>KIRIM</b> ({report['kirim_count']} ta yozuv)",
     ]
-    if k_som: lines.append(f"   So'm:   <b>{_fmt(k_som)} so'm</b>")
-    if k_usd: lines.append(f"   Dollar: <b>{_fmt(k_usd)} $</b>")
-    if not k_som and not k_usd: lines.append("   — yo'q")
 
-    lines.append(f"\n💸 <b>CHIQIM</b> ({report['chiqim_count']} ta yozuv)")
-    if c_som: lines.append(f"   So'm:   <b>{_fmt(c_som)} so'm</b>")
-    if c_usd: lines.append(f"   Dollar: <b>{_fmt(c_usd)} $</b>")
-    if not c_som and not c_usd: lines.append("   — yo'q")
+    # ── Tezkor umumiy ko'rinish ──
+    if not has_any:
+        lines.append("📭 Bugun hech qanday yozuv yo'q.")
+    else:
+        # So'm qatori
+        som_parts = []
+        if k_som: som_parts.append(f"💰 +{_fmt(k_som)}")
+        if c_som: som_parts.append(f"💸 -{_fmt(c_som)}")
+        if som_parts:
+            b_som_sign = "+" if b_som >= 0 else ""
+            lines.append(
+                f"🪙 <b>So'm:</b>  {' │ '.join(som_parts)}"
+                f"  →  <b>{b_som_sign}{_fmt(b_som)} so'm</b>"
+            )
 
-    lines += [
-        "\n━━━━━━━━━━━━━━━━━━━━",
-        "💼 <b>BALANS:</b>",
-        f"   So'm:   <b>{'+' if b_som >= 0 else ''}{_fmt(b_som)} so'm</b>",
-    ]
-    if k_usd or c_usd:
-        lines.append(f"   Dollar: <b>{'+' if b_usd >= 0 else ''}{_fmt(b_usd)} $</b>")
+        # Dollar qatori
+        if k_usd or c_usd:
+            usd_parts = []
+            if k_usd: usd_parts.append(f"💰 +{_fmt(k_usd)}")
+            if c_usd: usd_parts.append(f"💸 -{_fmt(c_usd)}")
+            b_usd_sign = "+" if b_usd >= 0 else ""
+            lines.append(
+                f"💵 <b>Dollar:</b>  {' │ '.join(usd_parts)}"
+                f"  →  <b>{b_usd_sign}{_fmt(b_usd)} $</b>"
+            )
+
+        # ── Batafsil bo'lim ──
+        lines += [
+            "\n━━━━━━━━━━━━━━━━━━━━",
+            f"💰 <b>KIRIM</b> ({report['kirim_count']} ta yozuv)",
+        ]
+        if k_som: lines.append(f"   So'm:   <b>{_fmt(k_som)} so'm</b>")
+        if k_usd: lines.append(f"   Dollar: <b>{_fmt(k_usd)} $</b>")
+        if not k_som and not k_usd: lines.append("   — yo'q")
+
+        lines.append(f"\n💸 <b>CHIQIM</b> ({report['chiqim_count']} ta yozuv)")
+        if c_som: lines.append(f"   So'm:   <b>{_fmt(c_som)} so'm</b>")
+        if c_usd: lines.append(f"   Dollar: <b>{_fmt(c_usd)} $</b>")
+        if not c_som and not c_usd: lines.append("   — yo'q")
+
+        lines += [
+            "\n━━━━━━━━━━━━━━━━━━━━",
+            "💼 <b>BALANS:</b>",
+            f"   So'm:   <b>{'+' if b_som >= 0 else ''}{_fmt(b_som)} so'm</b>",
+        ]
+        if k_usd or c_usd:
+            lines.append(f"   Dollar: <b>{'+' if b_usd >= 0 else ''}{_fmt(b_usd)} $</b>")
 
     await msg.edit_text("\n".join(lines), parse_mode="HTML")
 
