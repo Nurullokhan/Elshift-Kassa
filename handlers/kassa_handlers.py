@@ -11,6 +11,7 @@ from config import ADMIN_CHAT_ID
 from keyboards.kassa_keyboards import main_menu, cancel_keyboard, undo_keyboard
 from states.kassa_states import KassaState
 from services.google_sheets import is_allowed_user, save_kassa, delete_kassa_entry, get_today_report, get_overall_report
+from services.google_sheets import _parse_amount
 
 router = Router()
 
@@ -497,7 +498,8 @@ def _build_hisobot(report: dict, today: str, full_name: str | None = None) -> st
             "",
         ]
         for e in chiqim_entries:
-            lines.append(f"▪️ Naqd / {e['summa']} {e['valyuta']} — {e['izoh']}")
+            s = _fmt(_parse_amount(e['summa'])) if e['summa'] else e['summa']
+            lines.append(f"▪️ Naqd / {s} {e['valyuta']} — {e['izoh']}")
 
     # ── KIRIM ──
     if kirim_entries:
@@ -508,7 +510,8 @@ def _build_hisobot(report: dict, today: str, full_name: str | None = None) -> st
             "",
         ]
         for e in kirim_entries:
-            lines.append(f"▪️ Naqd / {e['summa']} {e['valyuta']} — {e['izoh']}")
+            s = _fmt(_parse_amount(e['summa'])) if e['summa'] else e['summa']
+            lines.append(f"▪️ Naqd / {s} {e['valyuta']} — {e['izoh']}")
 
     # ── BALANS ──
     if chiqim_entries or kirim_entries:

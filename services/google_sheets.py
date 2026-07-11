@@ -223,7 +223,7 @@ def delete_kassa_entry(entry: dict, retry: bool = True) -> bool:
                     and row[0] == entry["vaqt"]
                     and row[1] == entry["tg_id"]
                     and row[2] == entry["status"]
-                    and str(row[3]).replace(" ", "").replace(",", "") == str(entry["summa"]).replace(" ", "").replace(",", "")
+                    and str(row[3]).replace(" ", "").replace(",", "").replace(".", "") == str(entry["summa"]).replace(" ", "").replace(",", "").replace(".", "")
                     and row[4] == entry["valyuta"]
                     and row[5] == entry["izoh"]):
                 ws.delete_rows(i + 1)

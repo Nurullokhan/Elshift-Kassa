@@ -5,7 +5,7 @@ from aiogram import Router
 from aiogram.types import Message
 from aiogram.filters import Command
 
-from services.google_sheets import is_admin_user, get_today_report, get_last_entries
+from services.google_sheets import is_admin_user, get_today_report, get_last_entries, _parse_amount
 
 router = Router()
 
@@ -44,12 +44,14 @@ def _hisobot_text(report: dict) -> str:
     if chiqim_entries:
         lines += ["", "📤 <b>CHIQIM</b>", f"Jami: {jami_str(c_som, c_usd)}", ""]
         for e in chiqim_entries:
-            lines.append(f"▪️ Naqd / {e['summa']} {e['valyuta']} — {e['izoh']}")
+            s = _fmt(_parse_amount(e['summa'])) if e['summa'] else e['summa']
+            lines.append(f"▪️ Naqd / {s} {e['valyuta']} — {e['izoh']}")
 
     if kirim_entries:
         lines += ["", "📥 <b>KIRIM</b>", f"Jami: {jami_str(k_som, k_usd)}", ""]
         for e in kirim_entries:
-            lines.append(f"▪️ Naqd / {e['summa']} {e['valyuta']} — {e['izoh']}")
+            s = _fmt(_parse_amount(e['summa'])) if e['summa'] else e['summa']
+            lines.append(f"▪️ Naqd / {s} {e['valyuta']} — {e['izoh']}")
 
     if chiqim_entries or kirim_entries:
         balans_parts = []
@@ -141,6 +143,7 @@ async def cmd_oxirgi(message: Message):
     for e in entries:
         emoji = "💰" if e["tur"].lower() == "kirim" else "💸"
         val = e.get("valyuta", "")
-        lines.append(f"{emoji} {e['vaqt']} | <b>{e['summa']} {val}</b> | {e['izoh']}")
+        s = _fmt(_parse_amount(e['summa'])) if e['summa'] else e['summa']
+        lines.append(f"{emoji} {e['vaqt']} | <b>{s} {val}</b> | {e['izoh']}")
 
     await msg.edit_text("\n".join(lines), parse_mode="HTML")
