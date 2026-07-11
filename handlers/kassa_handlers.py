@@ -472,41 +472,26 @@ async def hisobot_button(message: Message):
 @router.message(F.text == "📋 Yakuniy hisobot")
 async def overall_hisobot_button(message: Message):
     msg = await message.answer("⏳ Yuklanmoqda...")
-    report = get_overall_report()
+    uid = message.from_user.id
+    report = get_overall_report(telegram_id=uid)
 
     if not report:
-        await msg.edit_text("❌ Hisobotni olishda xato.")
+        await msg.edit_text("❌ Hisobotni olishda xato yoki yozuv topilmadi.")
         return
 
     now_str = datetime.now().strftime("%d.%m.%Y %H:%M")
-    k_som = report["kirim_som"]
-    k_usd = report["kirim_usd"]
-    c_som = report["chiqim_som"]
-    c_usd = report["chiqim_usd"]
-    b_som = k_som - c_som
-    b_usd = k_usd - c_usd
+    b_som = report.get("b_som", 0.0)
+    b_usd = report.get("b_usd", 0.0)
 
     lines = [
         f"📋 <b>YAKUNIY HISOBOT</b>",
+        f"👤 Foydalanuvchi: {message.from_user.full_name}",
         f"📅 Holat: {now_str}",
         "━━━━━━━━━━━━━━━━━━━━",
-        f"💰 <b>UMUMIY KIRIM</b> ({report['kirim_count']} ta yozuv)",
-    ]
-    if k_som: lines.append(f"   So'm:   <b>{_fmt(k_som)} so'm</b>")
-    if k_usd: lines.append(f"   Dollar: <b>{_fmt(k_usd)} $</b>")
-    if not k_som and not k_usd: lines.append("   — yo'q")
-
-    lines.append(f"\n💸 <b>UMUMIY CHIQIM</b> ({report['chiqim_count']} ta yozuv)")
-    if c_som: lines.append(f"   So'm:   <b>{_fmt(c_som)} so'm</b>")
-    if c_usd: lines.append(f"   Dollar: <b>{_fmt(c_usd)} $</b>")
-    if not c_som and not c_usd: lines.append("   — yo'q")
-
-    lines += [
-        "\n━━━━━━━━━━━━━━━━━━━━",
         "💼 <b>QOLDIQ (BALANS):</b>",
         f"   So'm:   <b>{'+' if b_som >= 0 else ''}{_fmt(b_som)} so'm</b>",
     ]
-    if k_usd or c_usd:
+    if b_usd != 0:
         lines.append(f"   Dollar: <b>{'+' if b_usd >= 0 else ''}{_fmt(b_usd)} $</b>")
 
     await msg.edit_text("\n".join(lines), parse_mode="HTML")

@@ -295,56 +295,47 @@ def get_today_report(retry: bool = True) -> dict:
         return {}
 
 
-def get_overall_report(retry: bool = True) -> dict:
+def get_overall_report(telegram_id: int, retry: bool = True) -> dict:
     """
-    Barcha vaqtdagi yozuvlarni o'qib umumiy hisobot qaytaradi.
+    KassaBot varag'ining o'ng tomonidagi (G, H, I ustunlar) 
+    jadvaldan foydalanuvchi balansini o'qib qaytaradi.
     """
     ws = _get_kassabot_ws()
     if ws is None:
         return {}
 
     try:
-        result = {
-            "kirim_count": 0, "kirim_som": 0.0, "kirim_usd": 0.0,
-            "chiqim_count": 0, "chiqim_som": 0.0, "chiqim_usd": 0.0,
-        }
-
-        for row in ws.get_all_values()[1:]:
-            if len(row) < 6:
-                continue
-            _, _, status, summa, valyuta, _ = (
-                row[0], row[1], row[2], row[3], row[4], row[5]
-            )
-
-            # Raqamni tozalash
-            clean = str(summa).replace(" ", "").replace(",", "").strip()
-            try:
-                amount = float(clean)
-            except Exception:
-                amount = 0.0
-
-            is_usd = str(valyuta).strip() == "$"
-
-            if str(status).lower() == "kirim":
-                result["kirim_count"] += 1
-                if is_usd:
-                    result["kirim_usd"] += amount
-                else:
-                    result["kirim_som"] += amount
-            elif str(status).lower() == "chiqim":
-                result["chiqim_count"] += 1
-                if is_usd:
-                    result["chiqim_usd"] += amount
-                else:
-                    result["chiqim_som"] += amount
-
-        return result
+        all_data = ws.get_all_values()
+        
+        for row in all_data[1:]:
+            if len(row) >= 7:
+                sheet_id = str(row[6]).strip()
+                if sheet_id == str(telegram_id):
+                    som_val = str(row[7]).replace(" ", "").replace(",", "").strip() if len(row) >= 8 else "0"
+                    usd_val = str(row[8]).replace(" ", "").replace(",", "").strip() if len(row) >= 9 else "0"
+                    
+                    try:
+                        b_som = float(som_val) if som_val else 0.0
+                    except Exception:
+                        b_som = 0.0
+                        
+                    try:
+                        b_usd = float(usd_val) if usd_val else 0.0
+                    except Exception:
+                        b_usd = 0.0
+                        
+                    return {
+                        "b_som": b_som,
+                        "b_usd": b_usd
+                    }
+                    
+        return {"b_som": 0.0, "b_usd": 0.0}
 
     except Exception as e:
-        logging.error(f"Umumiy hisobot olishda xato: {e}")
+        logging.error(f"Foydalanuvchi balansini olishda xato: {e}")
         if retry:
             _reset_cache()
-            return get_overall_report(retry=False)
+            return get_overall_report(telegram_id, retry=False)
         return {}
 
 
