@@ -153,9 +153,9 @@ async def kirim_start(message: Message, state: FSMContext):
     else:
         text += (
             "<i>Namunalar:</i>\n"
-            "<code>Alukabond shopiriga - 1.005.000</code>\n"
-            "<code>Zuhriddinga - 500$</code>\n"
-            "<code>1500000 - Ish haqi</code>"
+            "<code>Mijozdan to'lov - 1.005.000</code>\n"
+            "<code>Avans Hasanovdan - 500$</code>\n"
+            "<code>1500000 - Savdo tushumi</code>"
         )
         
     await message.answer(text, parse_mode="HTML", reply_markup=cancel_keyboard())
@@ -225,20 +225,30 @@ async def kassa_input(message: Message, state: FSMContext, bot: Bot):
 
     summa, valyuta, izoh = _parse_input(text)
 
-    if summa is None:
-        await message.answer(
-            "⚠️ Format noto'g'ri. Namunalar:\n\n"
-            "<code>Alukabond shopiriga - 1.005.000</code>\n"
-            "<code>500$ - Zuhriddinga</code>\n"
-            "<code>1500000 - Ish haqi</code>\n\n"
-            "Izoh va summani <b> - </b> bilan ajrating.",
-            parse_mode="HTML",
-        )
-        return
-
     data = await state.get_data()
     tur  = data.get("tur", "Kirim")  # KeyError oldini olish
     uid  = message.from_user.id
+
+    if summa is None:
+        if tur == "Kirim":
+            ex = (
+                "<code>Mijozdan to'lov - 1.005.000</code>\n"
+                "<code>Avans Hasanovdan - 500$</code>\n"
+                "<code>1500000 - Savdo tushumi</code>"
+            )
+        else:
+            ex = (
+                "<code>Elektr to'lovi - 250.000</code>\n"
+                "<code>Material xaridi - 1,500,000</code>\n"
+                "<code>800000 - Ishchi maoshi</code>"
+            )
+            
+        await message.answer(
+            f"⚠️ Format noto'g'ri. Namunalar:\n\n{ex}\n\n"
+            f"Izoh va summani <b> - </b> bilan ajrating.",
+            parse_mode="HTML",
+        )
+        return
 
     ok, entry = save_kassa(uid, tur, summa, valyuta, izoh)
     await state.clear()
