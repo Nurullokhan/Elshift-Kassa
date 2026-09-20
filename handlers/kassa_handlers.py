@@ -10,7 +10,7 @@ from aiogram.fsm.context import FSMContext
 from config import ADMIN_CHAT_ID
 from keyboards.kassa_keyboards import main_menu, cancel_keyboard, undo_keyboard
 from states.kassa_states import KassaState
-from services.google_sheets import is_allowed_user, save_kassa, delete_kassa_entry, get_today_report, get_overall_report
+from services.google_sheets import is_allowed_user, save_kassa, delete_kassa_entry, get_today_report, get_overall_report, get_last_user_entries
 from services.google_sheets import _parse_amount
 
 router = Router()
@@ -139,15 +139,26 @@ async def kirim_start(message: Message, state: FSMContext):
     await state.clear()
     await state.update_data(tur="Kirim")
     await state.set_state(KassaState.input)
-    await message.answer(
-        "💰 <b>Kirim</b>\n\n"
-        "Izoh va summani <b>-</b> bilan ajratib yozing:\n\n"
-        "<code>Alukabond shopiriga - 1.005.000</code>\n"
-        "<code>Zuhriddinga - 500$</code>\n"
-        "<code>1500000 - Ish haqi</code>",
-        parse_mode="HTML",
-        reply_markup=cancel_keyboard(),
-    )
+    
+    uid = message.from_user.id
+    last_entries = get_last_user_entries(uid, "Kirim", 3)
+    
+    text = "💰 <b>Kirim</b>\n\nIzoh va summani <b>-</b> bilan ajratib yozing:\n\n"
+    
+    if last_entries:
+        text += "📝 <b>Sizning oxirgi kiritganlaringiz (Namuna sifatida):</b>\n"
+        for e in last_entries:
+            s = _fmt(_parse_amount(e['summa'])) if e['summa'] else e['summa']
+            text += f"▪️ <code>{e['izoh']} - {s} {e['valyuta']}</code>\n"
+    else:
+        text += (
+            "<i>Namunalar:</i>\n"
+            "<code>Alukabond shopiriga - 1.005.000</code>\n"
+            "<code>Zuhriddinga - 500$</code>\n"
+            "<code>1500000 - Ish haqi</code>"
+        )
+        
+    await message.answer(text, parse_mode="HTML", reply_markup=cancel_keyboard())
 
 
 @router.message(F.text == "💸 Chiqim")
@@ -155,15 +166,26 @@ async def chiqim_start(message: Message, state: FSMContext):
     await state.clear()
     await state.update_data(tur="Chiqim")
     await state.set_state(KassaState.input)
-    await message.answer(
-        "💸 <b>Chiqim</b>\n\n"
-        "Izoh va summani <b>-</b> bilan ajratib yozing:\n\n"
-        "<code>Elektr to'lovi - 250.000</code>\n"
-        "<code>Material xaridi - 1,500,000</code>\n"
-        "<code>800000 - Ishchi maoshi</code>",
-        parse_mode="HTML",
-        reply_markup=cancel_keyboard(),
-    )
+    
+    uid = message.from_user.id
+    last_entries = get_last_user_entries(uid, "Chiqim", 3)
+    
+    text = "💸 <b>Chiqim</b>\n\nIzoh va summani <b>-</b> bilan ajratib yozing:\n\n"
+    
+    if last_entries:
+        text += "📝 <b>Sizning oxirgi kiritganlaringiz (Namuna sifatida):</b>\n"
+        for e in last_entries:
+            s = _fmt(_parse_amount(e['summa'])) if e['summa'] else e['summa']
+            text += f"▪️ <code>{e['izoh']} - {s} {e['valyuta']}</code>\n"
+    else:
+        text += (
+            "<i>Namunalar:</i>\n"
+            "<code>Elektr to'lovi - 250.000</code>\n"
+            "<code>Material xaridi - 1,500,000</code>\n"
+            "<code>800000 - Ishchi maoshi</code>"
+        )
+        
+    await message.answer(text, parse_mode="HTML", reply_markup=cancel_keyboard())
 
 
 @router.message(F.text == "🔄 Ayirboshlash")

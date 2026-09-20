@@ -358,3 +358,30 @@ def get_last_entries(n: int = 10, retry: bool = True) -> list[dict]:
             _reset_cache()
             return get_last_entries(n, retry=False)
         return []
+
+
+def get_last_user_entries(telegram_id: int, tur: str, n: int = 3, retry: bool = True) -> list[dict]:
+    """Oxirgi n ta yozuvni foydalanuvchi va tur bo'yicha qaytaradi (eng yangi birinchi emas, to'g'ri tartibda yoki xronologik)."""
+    ws = _get_kassabot_ws()
+    if ws is None:
+        return []
+
+    try:
+        data = ws.get_all_values()[1:]
+        
+        filtered = [
+            {
+                "vaqt": r[0], "tg_id": r[1], "tur": r[2],
+                "summa": r[3], "valyuta": r[4], "izoh": r[5]
+            }
+            for r in data
+            if len(r) >= 6 and r[1].strip() == str(telegram_id) and r[2].strip().lower() == tur.lower()
+        ]
+        
+        return filtered[-n:]
+    except Exception as e:
+        logging.error(f"Foydalanuvchi oxirgi yozuvlarida xato: {e}")
+        if retry:
+            _reset_cache()
+            return get_last_user_entries(telegram_id, tur, n, retry=False)
+        return []
