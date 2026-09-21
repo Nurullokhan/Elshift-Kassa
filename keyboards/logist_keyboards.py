@@ -20,6 +20,22 @@ def logist_main_menu():
 
 def objects_keyboard(objects: list):
     keyboard = []
+    row = []
     for obj in objects:
-        keyboard.append([InlineKeyboardButton(text=obj['name'], callback_data=f"logist_obj_{obj['id']}")])
-    return InlineKeyboardMarkup(inline_keyboard=keyboard)
+        row.append(KeyboardButton(text=obj['name']))
+        if len(row) == 2:
+            keyboard.append(row)
+            row = []
+    if row:
+        keyboard.append(row)
+    keyboard.append([KeyboardButton(text="🔙 Chiqish / Bosh menyu")])
+    return ReplyKeyboardMarkup(keyboard=keyboard, resize_keyboard=True)
+
+def object_action_menu():
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="📦 Yetkazilgan mahsulotlar"), KeyboardButton(text="✅ Yetkazildi")],
+            [KeyboardButton(text="🔙 Orqaga")]
+        ],
+        resize_keyboard=True
+    )

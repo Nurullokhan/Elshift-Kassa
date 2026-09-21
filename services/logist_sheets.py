@@ -113,3 +113,38 @@ def save_logist_report(logist_id: int, object_id: str, text_id: str, photo_id: s
             _reset_cache()
             return save_logist_report(logist_id, object_id, text_id, photo_id, video_id, retry=False)
         return False
+
+def get_delivered_messages(object_id: str, retry: bool = True) -> list[dict]:
+    spreadsheet = _get_spreadsheet()
+    if spreadsheet is None:
+        return []
+        
+    try:
+        try:
+            ws = spreadsheet.worksheet("LogistData")
+        except gspread.exceptions.WorksheetNotFound:
+            return []
+            
+        all_data = ws.get_all_values()
+        messages = []
+        for i, row in enumerate(all_data):
+            if i == 0:
+                continue
+            if len(row) < 5:
+                continue
+            
+            row_obj_id = str(row[1]).strip()
+            if row_obj_id == str(object_id).strip():
+                messages.append({
+                    "text_id": row[2] if len(row) > 2 else "",
+                    "photo_id": row[3] if len(row) > 3 else "",
+                    "video_id": row[4] if len(row) > 4 else ""
+                })
+        return messages
+    except Exception as e:
+        logging.error(f"get_delivered_messages xato: {e}")
+        if retry:
+            _reset_cache()
+            return get_delivered_messages(object_id, retry=False)
+        return []
+
