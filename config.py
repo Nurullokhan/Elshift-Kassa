@@ -14,3 +14,9 @@ GOOGLE_SHEETS_CREDENTIALS_FILE = os.getenv("GOOGLE_SHEETS_CREDENTIALS_FILE", "cr
 GOOGLE_SHEETS_CREDENTIALS_JSON = os.getenv("GOOGLE_SHEETS_CREDENTIALS_JSON")
 GOOGLE_SHEET_URL = os.getenv("GOOGLE_SHEET_URL")
 
+_logist_raw = os.getenv("LOGIST_GROUP_ID", "").strip()
+try:
+    LOGIST_GROUP_ID = int(_logist_raw) if _logist_raw else 0
+except ValueError:
+    LOGIST_GROUP_ID = 0
+

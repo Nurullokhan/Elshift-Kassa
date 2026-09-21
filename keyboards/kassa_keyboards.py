@@ -14,6 +14,15 @@ def main_menu() -> ReplyKeyboardMarkup:
     )
 
 
+def choose_system_menu() -> ReplyKeyboardMarkup:
+    return ReplyKeyboardMarkup(
+        keyboard=[
+            [KeyboardButton(text="💰 Kassa tizimi"), KeyboardButton(text="🚚 Logistika tizimi")]
+        ],
+        resize_keyboard=True,
+    )
+
+
 def cancel_keyboard() -> ReplyKeyboardMarkup:
     return ReplyKeyboardMarkup(
         keyboard=[[KeyboardButton(text="❌ Bekor qilish")]],

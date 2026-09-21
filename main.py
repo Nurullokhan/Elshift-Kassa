@@ -6,6 +6,7 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from config import BOT_TOKEN
 from handlers.kassa_handlers import router as kassa_router
 from handlers.admin_handlers import router as admin_router
+from handlers.logist_handlers import router as logist_router
 from middlewares.auth_middleware import AuthMiddleware
 
 logging.basicConfig(
@@ -24,6 +25,7 @@ async def main():
 
     # Routerlar (admin birinchi — /hisobot va boshqa buyruqlar oldin ishlansin)
     dp.include_router(admin_router)
+    dp.include_router(logist_router)
     dp.include_router(kassa_router)
 
     print("Kassa boti ishga tushirildi...")

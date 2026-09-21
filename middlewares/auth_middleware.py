@@ -21,9 +21,12 @@ class AuthMiddleware(BaseMiddleware):
         data: Dict[str, Any],
     ) -> Any:
 
-        # /start uchun autentifikatsiya tekshirilmaydi — handler o'zi bajaradi
+        # /start va /logist uchun autentifikatsiya tekshirilmaydi
         if isinstance(event, Message):
-            if event.text and event.text.startswith("/start"):
+            if event.text and (event.text.startswith("/start") or event.text.startswith("/logist")):
+                return await handler(event, data)
+                
+            if event.contact:
                 return await handler(event, data)
 
             user = event.from_user

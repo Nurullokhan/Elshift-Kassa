@@ -8,8 +8,10 @@ from aiogram.filters import CommandStart
 from aiogram.fsm.context import FSMContext
 
 from config import ADMIN_CHAT_ID
-from keyboards.kassa_keyboards import main_menu, cancel_keyboard, undo_keyboard
 from states.kassa_states import KassaState
+from states.logist_states import LogistStates
+from keyboards.kassa_keyboards import main_menu, cancel_keyboard, choose_system_menu, undo_keyboard
+from keyboards.logist_keyboards import contact_keyboard
 from services.google_sheets import is_allowed_user, save_kassa, delete_kassa_entry, get_today_report, get_overall_report, get_last_user_entries
 from services.google_sheets import _parse_amount
 
@@ -117,15 +119,25 @@ async def cmd_start(message: Message, state: FSMContext):
     await state.clear()
     allowed, name = is_allowed_user(message.from_user.id)
     if not allowed:
-        await message.answer(
-            "❌ <b>Sizda bu botdan foydalanish huquqi yo'q.</b>\n\n"
-            "Qo'shilish uchun admin bilan bog'laning.",
-            parse_mode="HTML",
-        )
+        await message.answer("Tizimga kirish uchun telefon raqamingizni pastdagi tugma orqali yuboring:", reply_markup=contact_keyboard())
+        await state.set_state(LogistStates.waiting_for_contact)
         return
+        
     await message.answer(
         f"👋 Salom, <b>{name}</b>!\n\n"
-        f"<b>Elshift Kassa</b>\n\n"
+        f"Iltimos, tizimni tanlang:",
+        parse_mode="HTML",
+        reply_markup=choose_system_menu(),
+    )
+
+@router.message(F.text == "💰 Kassa tizimi")
+async def enter_kassa_system(message: Message, state: FSMContext):
+    allowed, name = is_allowed_user(message.from_user.id)
+    if not allowed:
+        return
+        
+    await message.answer(
+        f"<b>Elshift Kassa</b> bo'limiga xush kelibsiz!\n\n"
         f"Namuna: <code>100000 - Alukabond sotildi</code>",
         parse_mode="HTML",
         reply_markup=main_menu(),
