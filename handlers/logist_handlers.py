@@ -115,53 +115,101 @@ async def show_delivered_products(message: Message, state: FSMContext, bot: Bot)
             
     await message.answer("Barcha topilgan xabarlar yuborildi.")
 
-@router.message(LogistStates.waiting_for_action, F.text == "✅ Yetkazildi")
+
+@router.message(LogistStates.waiting_for_action, F.text == "📦 Yetkazildi")
 async def start_delivery_report(message: Message, state: FSMContext):
-    await message.answer("Yetkazilgan mahsulotlar nomini yozma kiriting (masalan: shurup, profil):", reply_markup=ReplyKeyboardRemove())
-    await state.set_state(LogistStates.waiting_for_items_text)
+    from config import LOGIST_REQUIRE_TEXT, LOGIST_REQUIRE_PHOTO, LOGIST_REQUIRE_VIDEO
+    
+    # Ma'lumotlarni tozalash
+    await state.update_data(text_content="", photo_id="", video_id="")
+    
+    if LOGIST_REQUIRE_TEXT:
+        await message.answer("Yetkazilgan mahsulotlar nomini yozma kiriting (masalan: shurup, profil):", reply_markup=ReplyKeyboardRemove())
+        await state.set_state(LogistStates.waiting_for_items_text)
+    elif LOGIST_REQUIRE_PHOTO:
+        await message.answer("Endi mahsulotlar rasmini yuboring:", reply_markup=ReplyKeyboardRemove())
+        await state.set_state(LogistStates.waiting_for_items_photo)
+    elif LOGIST_REQUIRE_VIDEO:
+        await message.answer("Endi video (yoki dumaloq video) yuboring:", reply_markup=ReplyKeyboardRemove())
+        await state.set_state(LogistStates.waiting_for_items_video)
+    else:
+        await finish_delivery_report(message, state, message.bot)
 
 @router.message(LogistStates.waiting_for_items_text, F.text)
-async def process_delivery_text(message: Message, state: FSMContext):
+async def process_delivery_text(message: Message, state: FSMContext, bot: Bot):
+    from config import LOGIST_REQUIRE_PHOTO, LOGIST_REQUIRE_VIDEO
     await state.update_data(text_content=message.text)
-    await message.answer("Endi mahsulotlar rasmini yuboring:")
-    await state.set_state(LogistStates.waiting_for_items_photo)
+    
+    if LOGIST_REQUIRE_PHOTO:
+        await message.answer("Endi mahsulotlar rasmini yuboring:")
+        await state.set_state(LogistStates.waiting_for_items_photo)
+    elif LOGIST_REQUIRE_VIDEO:
+        await message.answer("Endi video (yoki dumaloq video) yuboring:")
+        await state.set_state(LogistStates.waiting_for_items_video)
+    else:
+        await finish_delivery_report(message, state, bot)
 
 @router.message(LogistStates.waiting_for_items_photo, F.photo)
-async def process_delivery_photo(message: Message, state: FSMContext):
+async def process_delivery_photo(message: Message, state: FSMContext, bot: Bot):
+    from config import LOGIST_REQUIRE_VIDEO
     await state.update_data(photo_id=message.photo[-1].file_id)
-    await message.answer("Endi dumaloq video (video-note) yuboring:")
-    await state.set_state(LogistStates.waiting_for_items_video)
+    
+    if LOGIST_REQUIRE_VIDEO:
+        await message.answer("Endi video (yoki dumaloq video) yuboring:")
+        await state.set_state(LogistStates.waiting_for_items_video)
+    else:
+        await finish_delivery_report(message, state, bot)
 
-@router.message(LogistStates.waiting_for_items_video, F.video_note)
+@router.message(LogistStates.waiting_for_items_video, F.video_note | F.video)
 async def process_delivery_video(message: Message, state: FSMContext, bot: Bot):
-    video_id = message.video_note.file_id
+    video_id = message.video_note.file_id if message.video_note else message.video.file_id
+    await state.update_data(video_id=video_id)
+    await finish_delivery_report(message, state, bot)
+
+async def finish_delivery_report(message: Message, state: FSMContext, bot: Bot):
     data = await state.get_data()
     object_id = data.get("object_id")
     object_name = data.get("object_name")
-    text_content = data.get("text_content")
-    photo_id = data.get("photo_id")
+    text_content = data.get("text_content", "")
+    photo_id = data.get("photo_id", "")
+    video_id = data.get("video_id", "")
     
     allowed, name = is_allowed_user(message.from_user.id)
     logist_name = name if allowed else "Noma'lum"
     
+    from config import LOGIST_GROUP_ID
     if not LOGIST_GROUP_ID:
         await message.answer("Xatolik: LOGIST_GROUP_ID sozlanmagan. Iltimos, adminga murojaat qiling.")
         return
         
-    caption_html = f"🏢 <b>Obyekt:</b> {object_name}\n👤 <b>Logist:</b> {logist_name}\n📦 <b>Qo'shimcha matn:</b>\n{text_content}"
+    caption_html = f"🏢 <b>Obyekt:</b> {object_name}\n👤 <b>Logist:</b> {logist_name}"
+    if text_content:
+        caption_html += f"\n📦 <b>Qo'shimcha matn:</b>\n{text_content}"
     
     try:
         loading_msg = await message.answer("Xabarlar guruhga yuborilmoqda...")
-        msg_text = await bot.send_message(LOGIST_GROUP_ID, caption_html, parse_mode="HTML")
-        msg_photo = await bot.send_photo(LOGIST_GROUP_ID, photo_id)
-        msg_video = await bot.send_video_note(LOGIST_GROUP_ID, video_id)
         
-        save_logist_report(message.from_user.id, object_id, str(msg_text.message_id), photo_id, video_id)
+        msg_photo = None
+        if photo_id:
+            msg_photo = await bot.send_photo(LOGIST_GROUP_ID, photo_id, caption=caption_html, parse_mode="HTML")
+        elif text_content:
+            msg_photo = await bot.send_message(LOGIST_GROUP_ID, caption_html, parse_mode="HTML")
+            
+        if video_id:
+            try:
+                await bot.send_video_note(LOGIST_GROUP_ID, video_id)
+            except:
+                await bot.send_video(LOGIST_GROUP_ID, video_id)
+        
+        # Save photo msg ID as text_id so Mijoz bot copies the photo with caption
+        msg_id_to_save = str(msg_photo.message_id) if msg_photo else ""
+        save_logist_report(message.from_user.id, object_id, msg_id_to_save, "", video_id)
         
         await loading_msg.delete()
         await message.answer("✅ Barcha ma'lumotlar qabul qilindi va guruhga yuborildi!", reply_markup=logist_main_menu())
         await state.clear()
         
     except Exception as e:
+        import logging
         logging.error(f"Report forwarding error: {e}")
         await message.answer("Hisobotni guruhga yuborishda xatolik yuz berdi. Iltimos, qayta urinib ko'ring.")

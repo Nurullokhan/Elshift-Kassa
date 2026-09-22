@@ -20,3 +20,7 @@ try:
 except ValueError:
     LOGIST_GROUP_ID = 0
 
+
+LOGIST_REQUIRE_TEXT = os.getenv("LOGIST_REQUIRE_TEXT", "True").lower() in ("true", "1", "yes")
+LOGIST_REQUIRE_PHOTO = os.getenv("LOGIST_REQUIRE_PHOTO", "True").lower() in ("true", "1", "yes")
+LOGIST_REQUIRE_VIDEO = os.getenv("LOGIST_REQUIRE_VIDEO", "True").lower() in ("true", "1", "yes")
