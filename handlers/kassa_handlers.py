@@ -623,3 +623,10 @@ async def overall_hisobot_button(message: Message):
 
     await msg.edit_text("\n".join(lines), parse_mode="HTML")
 
+
+@router.message(F.text == "?? Orqaga / Bosh menyu")
+async def kassa_back_to_main(message: Message, state: FSMContext):
+    from keyboards.kassa_keyboards import choose_system_menu
+    await state.clear()
+    await message.answer("Tizimni tanlang:", reply_markup=choose_system_menu())
+
