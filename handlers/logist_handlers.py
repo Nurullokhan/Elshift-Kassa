@@ -116,7 +116,7 @@ async def show_delivered_products(message: Message, state: FSMContext, bot: Bot)
     await message.answer("Barcha topilgan xabarlar yuborildi.")
 
 
-@router.message(LogistStates.waiting_for_action, F.text == "📦 Yetkazildi")
+@router.message(LogistStates.waiting_for_action, F.text == "✅ Yetkazildi")
 async def start_delivery_report(message: Message, state: FSMContext):
     from config import LOGIST_REQUIRE_TEXT, LOGIST_REQUIRE_PHOTO, LOGIST_REQUIRE_VIDEO
     
